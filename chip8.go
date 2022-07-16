@@ -45,16 +45,17 @@ type Chip8 struct {
 
 	stack [16]uint16 // stack
 
-	beeper func() // beeper function
+	shouldDraw bool
+	beeper     func() // beeper function
 }
 
 func Init() *Chip8 {
 	c := &Chip8{
-		pc:     0x200,
+		pc:     0x200, // Program start at 0x200
 		beeper: func() {},
 	}
 
-	// Copy fontset to memory
+	// Copy fontset to memory, starting at 0x000
 	copy(c.memory[0:], fontSet)
 
 	return c
@@ -62,6 +63,12 @@ func Init() *Chip8 {
 
 func (c *Chip8) Buffer() [32][64]uint8 {
 	return c.display
+}
+
+func (c *Chip8) Draw() bool {
+	sd := c.shouldDraw
+	c.shouldDraw = false
+	return sd
 }
 
 func (c *Chip8) Beeper(f func()) {
@@ -91,6 +98,7 @@ func (c *Chip8) Cycle() {
 				}
 			}
 			c.pc += 2
+			c.shouldDraw = true
 		case 0x000E: // Return from subroutine
 			c.pc = c.stack[c.sp] // Set program counter to the address at the top of the stack
 			c.sp--               // Subtract 1 from stack pointer
@@ -105,22 +113,19 @@ func (c *Chip8) Cycle() {
 		c.stack[c.sp] = c.pc // Save current program counter to stack
 		c.pc = uint16(c.oc & 0x0FFF)
 	case 0x3000: // Skip next instruction if VX equals NN
+		c.pc += 2
 		if uint16(c.vx[(c.oc&0x0F00)>>8]) == c.oc&0x00FF {
-			c.pc += 4
-		} else {
 			c.pc += 2
 		}
 	case 0x4000: // Skip next instruction if VX doesn't equal NN
+		c.pc += 2
 		if uint16(c.vx[(c.oc&0x0F00)>>8]) != c.oc&0x00FF {
-			c.pc += 4
-		} else {
 			c.pc += 2
 		}
 	case 0x5000: // Skip next instruction if Vx = Vy.
+		c.pc += 2
 		if c.vx[(c.oc&0x0F00)>>8] == c.vx[(c.oc&0x00F0)>>4] {
 			c.pc += 4
-		} else {
-			c.pc += 2
 		}
 	case 0x6000: // Set Vx = kk.
 		c.vx[c.oc&0x0F00>>8] = uint8(c.oc & 0x00FF)
@@ -129,58 +134,68 @@ func (c *Chip8) Cycle() {
 		c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] + uint8(c.oc&0x00FF)
 		c.pc += 2
 	case 0x8000:
+		x := (c.oc & 0x0F00) >> 8
+		y := (c.oc & 0x00F0) >> 4
 		switch c.oc & 0x000F {
 		case 0x0000: // Set Vx = Vy.
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x00F0)>>4]
+			c.vx[x] = c.vx[y]
 			c.pc += 2
 		case 0x0001: // Set Vx = Vx OR Vy.
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] | c.vx[(c.oc&0x00F0)>>4]
+			c.vx[x] = c.vx[x] | c.vx[y]
 			c.pc += 2
 		case 0x0002: // Set Vx = Vx AND Vy.
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] & c.vx[(c.oc&0x00F0)>>4]
+			c.vx[x] = c.vx[x] & c.vx[y]
 			c.pc += 2
 		case 0x0003: // Set Vx = Vx XOR Vy.
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] ^ c.vx[(c.oc&0x00F0)>>4]
+			c.vx[x] = c.vx[x] ^ c.vx[y]
 			c.pc += 2
 		case 0x0004: // Set Vx = Vx + Vy, set VF = carry.
-			if c.vx[(c.oc&0x00F0)>>4] > 0xFF-c.vx[(c.oc&0x0F00)>>8] {
-				c.vx[0xF] = 1
-			} else {
-				c.vx[0xF] = 0
+			r := uint16(c.vx[x]) + uint16(c.vx[y])
+			var cf byte
+			if r > 0xFF {
+				cf = 1
 			}
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] + c.vx[(c.oc&0x00F0)>>4]
+			c.vx[0xF] = cf
+			c.vx[x] = byte(r)
 			c.pc = c.pc + 2
 		case 0x0005: // Set Vx = Vx - Vy, set VF = NOT borrow.
-			if c.vx[(c.oc&0x00F0)>>4] > c.vx[(c.oc&0x0F00)>>8] {
-				c.vx[0xF] = 0
-			} else {
-				c.vx[0xF] = 1
+			var cf byte
+			if c.vx[x] > c.vx[y] {
+				cf = 1
 			}
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] - c.vx[(c.oc&0x00F0)>>4]
-			c.pc = c.pc + 2
+			c.vx[0xF] = cf
+			c.vx[x] = c.vx[x] - c.vx[y]
+			c.pc += 2
 		case 0x0006: // Set Vx = Vx SHR 1.
-			c.vx[0xF] = c.vx[(c.oc&0x0F00)>>8] >> 7
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] << 1
-			c.pc = c.pc + 2
-		case 0x0007: // Set Vx = Vy - Vx, set VF = NOT borrow.
-			if c.vx[(c.oc&0x0F00)>>8] > c.vx[(c.oc&0x00F0)>>4] {
-				c.vx[0xF] = 0
-			} else {
-				c.vx[0xF] = 1
+			var cf byte
+			if (c.vx[x] & 0x01) == 0x01 {
+				cf = 1
 			}
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x00F0)>>4] - c.vx[(c.oc&0x0F00)>>8]
-			c.pc = c.pc + 2
+			c.vx[0xF] = cf
+			c.vx[x] = c.vx[x] / 2
+			c.pc += 2
+		case 0x0007: // Set Vx = Vy - Vx, set VF = NOT borrow.
+			var cf byte
+			if c.vx[y] > c.vx[x] {
+				cf = 1
+			}
+			c.vx[0xF] = cf
+			c.vx[x] = c.vx[y] - c.vx[x]
+			c.pc += 2
 		case 0x000E: // Set Vx = Vx SHL 1.
-			c.vx[0xF] = c.vx[(c.oc&0x0F00)>>8] >> 7
-			c.vx[(c.oc&0x0F00)>>8] = c.vx[(c.oc&0x0F00)>>8] << 1
-			c.pc = c.pc + 2
+			var cf byte
+			if (c.vx[x] & 0x80) == 0x80 {
+				cf = 1
+			}
+			c.vx[0xF] = cf
+			c.vx[x] = c.vx[x] * 2
+			c.pc += 2
 		default:
 			fmt.Printf("invalid opcode: %X\n", c.oc)
 		}
 	case 0x9000: // Skip next instruction if Vx != Vy.
+		c.pc += 2
 		if c.vx[c.oc&0x0F00>>8] != c.vx[(c.oc&0x00F0)>>4] {
-			c.pc += 4
-		} else {
 			c.pc += 2
 		}
 	case 0xA000: // Set I = nnn.
@@ -202,26 +217,35 @@ func (c *Chip8) Cycle() {
 			pixel := c.memory[c.vi+j]
 			for i = 0; i < 8; i++ {
 				if (pixel & (0x80 >> i)) != 0 {
-					if c.display[(y + uint8(j))][x+uint8(i)] == 1 {
+					posY := y + uint8(j)
+					posX := x + uint8(i)
+
+					if posY >= 32 {
+						posY = 31
+					}
+					if posX >= 64 {
+						posX = 63
+					}
+
+					if c.display[posY][posX] == 1 {
 						c.vx[0xF] = 1
 					}
-					c.display[(y + uint8(j))][x+uint8(i)] ^= 1
+					c.display[posY][posX] ^= 1
 				}
 			}
 		}
 		c.pc = c.pc + 2
+		c.shouldDraw = true
 	case 0xE000:
 		switch c.oc & 0x00FF {
 		case 0x009E: // Skip next instruction if key with the value of Vx is pressed.
+			c.pc += 2
 			if c.key[c.vx[(c.oc&0x0F00)>>8]] == 1 {
 				c.pc += 4
-			} else {
-				c.pc += 2
 			}
 		case 0x00A1: // Skip next instruction if key with the value of Vx is not pressed.
+			c.pc += 2
 			if c.key[c.vx[(c.oc&0x0F00)>>8]] == 0 {
-				c.pc += 4
-			} else {
 				c.pc += 2
 			}
 		default:
@@ -259,7 +283,7 @@ func (c *Chip8) Cycle() {
 		case 0x0033: // 0xFX33 Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2
 			c.memory[c.vi] = c.vx[(c.oc&0x0F00)>>8] / 100
 			c.memory[c.vi+1] = (c.vx[(c.oc&0x0F00)>>8] / 10) % 10
-			c.memory[c.vi+2] = (c.vx[(c.oc&0x0F00)>>8] % 100) / 10
+			c.memory[c.vi+2] = (c.vx[(c.oc&0x0F00)>>8] % 100) % 10
 			c.pc = c.pc + 2
 		case 0x0055: // 0xFX55 Stores V0 to VX (including VX) in memory starting at address I. I is increased by 1 for each value written
 			for i := 0; i < int((c.oc&0x0F00)>>8)+1; i++ {
