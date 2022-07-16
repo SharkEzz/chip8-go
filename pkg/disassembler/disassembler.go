@@ -13,6 +13,7 @@ type Line struct {
 type Disassembler struct {
 	fileContent []byte
 	pc          uint16
+	Lines       []Line
 }
 
 func NewDisassembler(fileName string) (*Disassembler, error) {
@@ -30,7 +31,7 @@ func NewDisassembler(fileName string) (*Disassembler, error) {
 func (d *Disassembler) Disassemble() []Line {
 	lines := []Line{}
 
-	for d.pc != uint16(len(d.fileContent)-1) {
+	for d.pc != uint16(len(d.fileContent)-1) && int(d.pc+1) <= len(d.fileContent) {
 		op := uint16(d.fileContent[d.pc])<<8 | uint16(d.fileContent[d.pc+1])
 
 		x := (op & 0x0F00) >> 8
@@ -132,7 +133,19 @@ func (d *Disassembler) Disassemble() []Line {
 		d.pc += 2
 	}
 
+	d.Lines = lines
+
 	return lines
+}
+
+func (d *Disassembler) WriteToFile(fileName string) error {
+	bf := []byte{}
+
+	for _, line := range d.Lines {
+		bf = append(bf, []byte(fmt.Sprintln(line.Instruction))...)
+	}
+
+	return os.WriteFile(fileName, bf, 0666)
 }
 
 // Format an opcode to its hexadecimal representation (0x0000)

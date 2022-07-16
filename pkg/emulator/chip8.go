@@ -237,10 +237,10 @@ func (c *Chip8) processOP(op uint16) {
 					posX := uint8(x) + uint8(i)
 
 					if posX >= 64 {
-						posX = 0
+						posX = posX - 64
 					}
 					if posY >= 32 {
-						posY = 0
+						posY = posX - 32
 					}
 
 					if c.Display[posY][posX] == 1 {
