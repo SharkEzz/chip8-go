@@ -122,23 +122,26 @@ func (c *Chip8) processOP(op uint16) {
 	nnn := op & 0x0FFF
 	kk := op & 0x00FF
 
-	c.nextInstruction()
+	if c.PC+2 < 0xFFF {
+		c.nextInstruction()
+	}
 
 	switch op & 0xF000 { // 0xF000 because we need to get only the first nibble
 	case 0x0000:
-		switch op & 0x000F { // 0x000F because we need to get only the last nibble
-		case 0x0000:
+		switch op & 0x00FF { // 0x000F because we need to get only the last nibble
+		case 0x00E0:
 			for i := 0; i < 32; i++ {
 				for j := 0; j < 64; j++ {
 					c.Display[i][j] = 0
 				}
 			}
 			c.ShouldDraw = true
-		case 0x000E: // Return from subroutine
+		case 0x00EE: // Return from subroutine
 			c.PC = c.Stack[c.SP] // Set program counter to the address at the top of the stack
 			c.SP--               // Subtract 1 from stack pointer
 		default:
-			fmt.Printf("invalid opcode: %X\n", op)
+			// We ignore 0nnn opcodes
+			break
 		}
 	case 0x1000: // Jump to address NNN
 		c.PC = nnn
@@ -209,7 +212,7 @@ func (c *Chip8) processOP(op uint16) {
 			c.V[0xF] = cf
 			c.V[x] = c.V[x] * 2
 		default:
-			fmt.Printf("invalid opcode: %X\n", op)
+			fmt.Printf("invalid opcode: 0x%04X\n", op)
 		}
 	case 0x9000: // Skip next instruction if Vx != Vy.
 		if c.V[x] != c.V[y] {
@@ -225,26 +228,23 @@ func (c *Chip8) processOP(op uint16) {
 		x := c.V[x]
 		y := c.V[y]
 		n := op & 0x000F
-		c.V[0xF] = 0
-		var j uint16
-		var i uint16
-		for j = 0; j < n; j++ {
+		c.V[0xF] = 0x0
+		for j := uint16(0); j < n; j++ {
 			pixel := c.Memory[c.I+j]
-			for i = 0; i < 8; i++ {
+			for i := uint16(0); i < 8; i++ {
 				if (pixel & (0x80 >> i)) != 0 {
 					posY := uint8(y) + uint8(j)
 					posX := uint8(x) + uint8(i)
 
-					// TODO: fix
-					if posX > 63 {
-						posX = 63
+					if posX >= 64 {
+						posX = 0
 					}
-					if posY > 31 {
-						posY = 31
+					if posY >= 32 {
+						posY = 0
 					}
 
 					if c.Display[posY][posX] == 1 {
-						c.V[0xF] = 1
+						c.V[0xF] = 0x1
 					}
 					c.Display[posY][posX] ^= 1
 				}
@@ -262,7 +262,7 @@ func (c *Chip8) processOP(op uint16) {
 				c.nextInstruction()
 			}
 		default:
-			fmt.Printf("invalid opcode: %X\n", op)
+			fmt.Printf("invalid opcode: 0x%04X\n", op)
 		}
 	case 0xF000:
 		switch op & 0x00FF {
@@ -287,23 +287,23 @@ func (c *Chip8) processOP(op uint16) {
 			c.I = c.I + uint16(c.V[x])
 		case 0x0029: // Set I = location of sprite for digit Vx.
 			c.I = uint16(c.V[x]) * 0x5
-		case 0x0033: // 0xFX33 Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2
+		case 0x0033: // Store BCD representation of Vx in memory locations I, I+1, and I+2.
 			c.Memory[c.I] = c.V[x] / 100
 			c.Memory[c.I+1] = (c.V[x] / 10) % 10
 			c.Memory[c.I+2] = (c.V[x] % 100) % 10
-		case 0x0055: // 0xFX55 Stores V0 to VX (including VX) in memory starting at address I. I is increased by 1 for each value written
+		case 0x0055: // Store registers V0 through Vx in memory starting at location I.
 			for i := 0; i < int(x)+1; i++ {
 				c.Memory[uint16(i)+c.I] = c.V[i]
 			}
 			c.I = x + 1
-		case 0x0065: // 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. I is increased by 1 for each value written
+		case 0x0065: // Read registers V0 through Vx from memory starting at location I.
 			for i := 0; i < int(x)+1; i++ {
 				c.V[i] = c.Memory[c.I+uint16(i)]
 			}
 			c.I = x + 1
 		}
 	default:
-		fmt.Printf("invalid opcode: %X\n", op)
+		fmt.Printf("invalid opcode: 0x%04X\n", op)
 	}
 }
 

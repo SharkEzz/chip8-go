@@ -30,7 +30,7 @@ func NewDisassembler(fileName string) (*Disassembler, error) {
 func (d *Disassembler) Disassemble() []Line {
 	lines := []Line{}
 
-	for d.pc != uint16(len(d.fileContent)) {
+	for d.pc != uint16(len(d.fileContent)-1) {
 		op := uint16(d.fileContent[d.pc])<<8 | uint16(d.fileContent[d.pc+1])
 
 		x := (op & 0x0F00) >> 8
@@ -46,7 +46,7 @@ func (d *Disassembler) Disassemble() []Line {
 			case 0x000E:
 				lines = append(lines, Line{formatOP(op), "RET"})
 			default:
-				fmt.Printf("invalid opcode: %X\n", op)
+				break
 			}
 		case 0x1000:
 			lines = append(lines, Line{formatOP(op), fmt.Sprintf("JP 0x%04X", nnn)})
@@ -92,7 +92,7 @@ func (d *Disassembler) Disassemble() []Line {
 		case 0xB000:
 			lines = append(lines, Line{formatOP(op), fmt.Sprintf("JP V0, 0x%04X", nnn)})
 		case 0xC000:
-			lines = append(lines, Line{formatOP(op), fmt.Sprintf("RND V%d, 0x%04X", x, kk)})
+			lines = append(lines, Line{formatOP(op), fmt.Sprintf("RND V%X, 0x%04X", x, kk)})
 		case 0xD000:
 			lines = append(lines, Line{formatOP(op), fmt.Sprintf("DRW V%X, V%X, 0x%04X", x, y, op&0x000F)})
 		case 0xE000:
