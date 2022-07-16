@@ -91,6 +91,13 @@ func (c *Chip8) Cycle() {
 
 // processOP take a opcode and process it
 func (c *Chip8) processOP(op uint16) {
+	x := (op & 0x0F00) >> 8
+	y := (op & 0x00F0) >> 4
+	nnn := op & 0x0FFF
+	kk := op & 0x00FF
+
+	c.nextInstruction()
+
 	switch op & 0xF000 { // 0xF000 because we need to get only the first nibble
 	case 0x0000:
 		switch op & 0x000F { // 0x000F because we need to get only the last nibble
@@ -100,58 +107,45 @@ func (c *Chip8) processOP(op uint16) {
 					c.Display[i][j] = 0
 				}
 			}
-			c.incrementPC()
 			c.ShouldDraw = true
 		case 0x000E: // Return from subroutine
 			c.PC = c.Stack[c.SP] // Set program counter to the address at the top of the stack
 			c.SP--               // Subtract 1 from stack pointer
-			c.incrementPC()
 		default:
 			fmt.Printf("invalid opcode: %X\n", op)
 		}
 	case 0x1000: // Jump to address NNN
-		c.PC = uint16(op & 0x0FFF)
+		c.PC = nnn
 	case 0x2000: // Call subroutine at NNN
 		c.SP++
 		c.Stack[c.SP] = c.PC // Save current program counter to stack
-		c.PC = uint16(op & 0x0FFF)
-	case 0x3000: // Skip next instruction if VX equals NN
-		c.incrementPC()
-		if uint16(c.V[(op&0x0F00)>>8]) == op&0x00FF {
-			c.incrementPC()
+		c.PC = nnn
+	case 0x3000: // Skip next instruction if VX equals KK
+		if uint16(c.V[x]) == kk {
+			c.nextInstruction()
 		}
-	case 0x4000: // Skip next instruction if VX doesn't equal NN
-		c.incrementPC()
-		if uint16(c.V[(op&0x0F00)>>8]) != op&0x00FF {
-			c.incrementPC()
+	case 0x4000: // Skip next instruction if VX doesn't equal KK
+		if uint16(c.V[x]) != kk {
+			c.nextInstruction()
 		}
 	case 0x5000: // Skip next instruction if Vx = Vy.
-		c.incrementPC()
-		if c.V[(op&0x0F00)>>8] == c.V[(op&0x00F0)>>4] {
-			c.incrementPC()
+		if c.V[x] == c.V[y] {
+			c.nextInstruction()
 		}
 	case 0x6000: // Set Vx = kk.
-		c.V[op&0x0F00>>8] = uint8(op & 0x00FF)
-		c.incrementPC()
+		c.V[x] = uint8(kk)
 	case 0x7000: // Set Vx = Vx + kk.
-		c.V[(op&0x0F00)>>8] = c.V[(op&0x0F00)>>8] + uint8(op&0x00FF)
-		c.incrementPC()
+		c.V[x] = c.V[x] + uint8(kk)
 	case 0x8000:
-		x := (op & 0x0F00) >> 8
-		y := (op & 0x00F0) >> 4
 		switch op & 0x000F {
 		case 0x0000: // Set Vx = Vy.
 			c.V[x] = c.V[y]
-			c.incrementPC()
 		case 0x0001: // Set Vx = Vx OR Vy.
 			c.V[x] = c.V[x] | c.V[y]
-			c.incrementPC()
 		case 0x0002: // Set Vx = Vx AND Vy.
 			c.V[x] = c.V[x] & c.V[y]
-			c.incrementPC()
 		case 0x0003: // Set Vx = Vx XOR Vy.
 			c.V[x] = c.V[x] ^ c.V[y]
-			c.incrementPC()
 		case 0x0004: // Set Vx = Vx + Vy, set VF = carry.
 			r := uint16(c.V[x]) + uint16(c.V[y])
 			var cf byte
@@ -159,8 +153,7 @@ func (c *Chip8) processOP(op uint16) {
 				cf = 1
 			}
 			c.V[0xF] = cf
-			c.V[x] = byte(r)
-			c.incrementPC()
+			c.V[x] = uint8(r)
 		case 0x0005: // Set Vx = Vx - Vy, set VF = NOT borrow.
 			var cf byte
 			if c.V[x] > c.V[y] {
@@ -168,7 +161,6 @@ func (c *Chip8) processOP(op uint16) {
 			}
 			c.V[0xF] = cf
 			c.V[x] = c.V[x] - c.V[y]
-			c.incrementPC()
 		case 0x0006: // Set Vx = Vx SHR 1.
 			var cf byte
 			if (c.V[x] & 0x01) == 0x01 {
@@ -176,7 +168,6 @@ func (c *Chip8) processOP(op uint16) {
 			}
 			c.V[0xF] = cf
 			c.V[x] = c.V[x] / 2
-			c.incrementPC()
 		case 0x0007: // Set Vx = Vy - Vx, set VF = NOT borrow.
 			var cf byte
 			if c.V[y] > c.V[x] {
@@ -184,7 +175,6 @@ func (c *Chip8) processOP(op uint16) {
 			}
 			c.V[0xF] = cf
 			c.V[x] = c.V[y] - c.V[x]
-			c.incrementPC()
 		case 0x000E: // Set Vx = Vx SHL 1.
 			var cf byte
 			if (c.V[x] & 0x80) == 0x80 {
@@ -192,26 +182,22 @@ func (c *Chip8) processOP(op uint16) {
 			}
 			c.V[0xF] = cf
 			c.V[x] = c.V[x] * 2
-			c.incrementPC()
 		default:
 			fmt.Printf("invalid opcode: %X\n", op)
 		}
 	case 0x9000: // Skip next instruction if Vx != Vy.
-		c.incrementPC()
-		if c.V[op&0x0F00>>8] != c.V[(op&0x00F0)>>4] {
-			c.incrementPC()
+		if c.V[x] != c.V[y] {
+			c.nextInstruction()
 		}
 	case 0xA000: // Set I = nnn.
-		c.I = op & 0x0FFF
-		c.incrementPC()
+		c.I = nnn
 	case 0xB000: // Jump to location nnn + V0.
-		c.PC = (op & 0x0FFF) + uint16(c.V[0x0])
+		c.PC = nnn + uint16(c.V[0x0])
 	case 0xC000: // Set Vx = random byte AND kk.
-		c.V[op&0x0F00>>8] = uint8(rand.Intn(256)) & uint8(op&0x00FF)
-		c.incrementPC()
+		c.V[x] = uint8(rand.Intn(256)) & uint8(kk)
 	case 0xD000: // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
-		x := c.V[(op&0x0F00)>>8]
-		y := c.V[(op&0x00F0)>>4]
+		x := c.V[x]
+		y := c.V[y]
 		n := op & 0x000F
 		c.V[0xF] = 0
 		var j uint16
@@ -220,8 +206,8 @@ func (c *Chip8) processOP(op uint16) {
 			pixel := c.Memory[c.I+j]
 			for i = 0; i < 8; i++ {
 				if (pixel & (0x80 >> i)) != 0 {
-					posY := y + uint8(j)
-					posX := x + uint8(i)
+					posY := uint8(y) + uint8(j)
+					posX := uint8(x) + uint8(i)
 
 					if posY >= 32 {
 						posY = 31
@@ -237,19 +223,16 @@ func (c *Chip8) processOP(op uint16) {
 				}
 			}
 		}
-		c.incrementPC()
 		c.ShouldDraw = true
 	case 0xE000:
 		switch op & 0x00FF {
 		case 0x009E: // Skip next instruction if key with the value of Vx is pressed.
-			c.incrementPC()
-			if c.Key[c.V[(op&0x0F00)>>8]] == 1 {
-				c.incrementPC()
+			if c.Key[c.V[x]] == 1 {
+				c.nextInstruction()
 			}
 		case 0x00A1: // Skip next instruction if key with the value of Vx is not pressed.
-			c.incrementPC()
-			if c.Key[c.V[(op&0x0F00)>>8]] == 0 {
-				c.incrementPC()
+			if c.Key[c.V[x]] == 0 {
+				c.nextInstruction()
 			}
 		default:
 			fmt.Printf("invalid opcode: %X\n", op)
@@ -257,57 +240,48 @@ func (c *Chip8) processOP(op uint16) {
 	case 0xF000:
 		switch op & 0x00FF {
 		case 0x0007: // Set Vx = delay timer value.
-			c.V[(op&0x0F00)>>8] = c.DT
-			c.incrementPC()
+			c.V[x] = c.DT
 		case 0x000A: // Wait for a key press, store the value of the key in Vx.
 			pressed := false
 			for i := 0; i < len(c.Key); i++ {
 				if c.Key[i] != 0 {
-					c.V[(op&0x0F00)>>8] = uint8(i)
+					c.V[x] = uint8(i)
 					pressed = true
 				}
 			}
 			if !pressed {
 				return
 			}
-			c.incrementPC()
 		case 0x0015: // Set delay timer = Vx.
-			c.DT = c.V[(op&0xF00)>>8]
-			c.incrementPC()
+			c.DT = c.V[x]
 		case 0x0018: // Set sound timer = Vx.
-			c.ST = c.V[(op&0xF00)>>8]
-			c.incrementPC()
+			c.ST = c.V[x]
 		case 0x001E: // Set I = I + Vx.
-			c.I = c.I + uint16(c.V[(op&0x0F00)>>8])
-			c.incrementPC()
+			c.I = c.I + uint16(c.V[x])
 		case 0x0029: // Set I = location of sprite for digit Vx.
-			c.I = uint16(c.V[(op&0x0F00)>>8]) * 0x5
-			c.incrementPC()
+			c.I = uint16(c.V[x]) * 0x5
 		case 0x0033: // 0xFX33 Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2
-			c.Memory[c.I] = c.V[(op&0x0F00)>>8] / 100
-			c.Memory[c.I+1] = (c.V[(op&0x0F00)>>8] / 10) % 10
-			c.Memory[c.I+2] = (c.V[(op&0x0F00)>>8] % 100) % 10
-			c.incrementPC()
+			c.Memory[c.I] = c.V[x] / 100
+			c.Memory[c.I+1] = (c.V[x] / 10) % 10
+			c.Memory[c.I+2] = (c.V[x] % 100) % 10
 		case 0x0055: // 0xFX55 Stores V0 to VX (including VX) in memory starting at address I. I is increased by 1 for each value written
-			for i := 0; i < int((op&0x0F00)>>8)+1; i++ {
+			for i := 0; i < int(x)+1; i++ {
 				c.Memory[uint16(i)+c.I] = c.V[i]
 			}
-			c.I = ((op & 0x0F00) >> 8) + 1
-			c.incrementPC()
+			c.I = x + 1
 		case 0x0065: // 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. I is increased by 1 for each value written
-			for i := 0; i < int((op&0x0F00)>>8)+1; i++ {
+			for i := 0; i < int(x)+1; i++ {
 				c.V[i] = c.Memory[c.I+uint16(i)]
 			}
-			c.I = ((op & 0x0F00) >> 8) + 1
-			c.incrementPC()
+			c.I = x + 1
 		}
 	default:
 		fmt.Printf("invalid opcode: %X\n", op)
 	}
 }
 
-// Increment the PC register by 2.
-func (c *Chip8) incrementPC() {
+// Increment the PC (program-counter) register by 2.
+func (c *Chip8) nextInstruction() {
 	c.PC += 2
 }
 
