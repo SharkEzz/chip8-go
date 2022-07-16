@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -12,9 +13,16 @@ const MODIFIER = 15
 
 type Game struct {
 	emulator *Chip8
+	ticker   *time.Ticker
 }
 
 func (g *Game) Update() error {
+	select {
+	default:
+		return nil
+	case <-g.ticker.C:
+	}
+
 	g.emulator.Cycle()
 
 	if ebiten.IsKeyPressed(ebiten.Key1) {
@@ -123,7 +131,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	emulator := Init()
 	emulator.Beeper(func() { fmt.Print("\a") })
-	err := emulator.LoadProgram("./brick.ch8")
+	err := emulator.LoadProgram("./sirpinski.ch8")
 	if err != nil {
 		panic(err)
 	}
@@ -131,9 +139,11 @@ func main() {
 	ebiten.SetWindowSize(64*MODIFIER, 32*MODIFIER)
 	ebiten.SetWindowTitle("Chip8")
 	ebiten.SetScreenClearedEveryFrame(false)
-	ebiten.SetMaxTPS(260)
+	ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
+	ebiten.SetMaxTPS(-1)
 	game := &Game{
 		emulator,
+		time.NewTicker(time.Second / 60),
 	}
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)

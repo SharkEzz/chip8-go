@@ -125,7 +125,7 @@ func (c *Chip8) Cycle() {
 	case 0x5000: // Skip next instruction if Vx = Vy.
 		c.pc += 2
 		if c.vx[(c.oc&0x0F00)>>8] == c.vx[(c.oc&0x00F0)>>4] {
-			c.pc += 4
+			c.pc += 2
 		}
 	case 0x6000: // Set Vx = kk.
 		c.vx[c.oc&0x0F00>>8] = uint8(c.oc & 0x00FF)
@@ -157,7 +157,7 @@ func (c *Chip8) Cycle() {
 			}
 			c.vx[0xF] = cf
 			c.vx[x] = byte(r)
-			c.pc = c.pc + 2
+			c.pc += 2
 		case 0x0005: // Set Vx = Vx - Vy, set VF = NOT borrow.
 			var cf byte
 			if c.vx[x] > c.vx[y] {
@@ -241,7 +241,7 @@ func (c *Chip8) Cycle() {
 		case 0x009E: // Skip next instruction if key with the value of Vx is pressed.
 			c.pc += 2
 			if c.key[c.vx[(c.oc&0x0F00)>>8]] == 1 {
-				c.pc += 4
+				c.pc += 2
 			}
 		case 0x00A1: // Skip next instruction if key with the value of Vx is not pressed.
 			c.pc += 2
@@ -284,19 +284,19 @@ func (c *Chip8) Cycle() {
 			c.memory[c.vi] = c.vx[(c.oc&0x0F00)>>8] / 100
 			c.memory[c.vi+1] = (c.vx[(c.oc&0x0F00)>>8] / 10) % 10
 			c.memory[c.vi+2] = (c.vx[(c.oc&0x0F00)>>8] % 100) % 10
-			c.pc = c.pc + 2
+			c.pc += 2
 		case 0x0055: // 0xFX55 Stores V0 to VX (including VX) in memory starting at address I. I is increased by 1 for each value written
 			for i := 0; i < int((c.oc&0x0F00)>>8)+1; i++ {
 				c.memory[uint16(i)+c.vi] = c.vx[i]
 			}
 			c.vi = ((c.oc & 0x0F00) >> 8) + 1
-			c.pc = c.pc + 2
+			c.pc += 2
 		case 0x0065: // 0xFX65 Fills V0 to VX (including VX) with values from memory starting at address I. I is increased by 1 for each value written
 			for i := 0; i < int((c.oc&0x0F00)>>8)+1; i++ {
 				c.vx[i] = c.memory[c.vi+uint16(i)]
 			}
 			c.vi = ((c.oc & 0x0F00) >> 8) + 1
-			c.pc = c.pc + 2
+			c.pc += 2
 		}
 	default:
 		fmt.Printf("invalid opcode: %X\n", c.oc)
