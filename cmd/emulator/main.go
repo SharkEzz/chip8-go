@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"image/color"
-	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -16,19 +15,16 @@ const MODIFIER = 15
 
 type Game struct {
 	emulator *emulator.Chip8
-	ticker   *time.Ticker
 	latestOp uint16
 	debugImg *ebiten.Image
 }
 
 func (g *Game) Update() error {
-	select {
-	default:
-		return nil
-	case <-g.ticker.C:
-	}
+	op := g.emulator.Cycle()
 
-	g.latestOp = g.emulator.Cycle()
+	if op != 0 {
+		g.latestOp = op
+	}
 
 	g.processKeyPress()
 
@@ -164,10 +160,11 @@ func (g *Game) processKeyPress() {
 
 func main() {
 	file := flag.String("file", "", "The program to load")
+	speed := flag.Uint("speed", 60, "Speed of the emulator")
 
 	flag.Parse()
 
-	chip8 := emulator.Init()
+	chip8 := emulator.Init(*speed)
 
 	if *file != "" {
 		err := chip8.LoadProgram(*file)
@@ -183,7 +180,6 @@ func main() {
 	ebiten.SetMaxTPS(-1)
 	game := &Game{
 		chip8,
-		time.NewTicker(time.Second / 60),
 		0,
 		ebiten.NewImage(350, 250),
 	}

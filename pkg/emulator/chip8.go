@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"time"
 )
 
 var fontSet = []uint8{
@@ -38,12 +39,14 @@ type Chip8 struct {
 	Stack      [16]uint16    // stack
 	ShouldDraw bool
 	Beeper     func() // beeper function
+	Clock      *time.Ticker
 }
 
-func Init() *Chip8 {
+func Init(clock uint) *Chip8 {
 	c := &Chip8{
 		PC:     0x200, // Program start at 0x200
 		Beeper: func() { fmt.Print("\a") },
+		Clock:  time.NewTicker(time.Second / time.Duration(clock)),
 	}
 
 	// Copy fontset to memory, starting at 0x000
@@ -91,6 +94,12 @@ func (c *Chip8) SetKeyState(num uint8, down bool) {
 //
 // By default the Chi8 CPU run at 60Hz.
 func (c *Chip8) Cycle() uint16 {
+	select {
+	default:
+		return 0
+	case <-c.Clock.C:
+	}
+
 	op := uint16(c.Memory[c.PC])<<8 | uint16(c.Memory[c.PC+1]) // Combine the 2 bytes of the opcode
 
 	c.processOP(op)
@@ -211,7 +220,7 @@ func (c *Chip8) processOP(op uint16) {
 	case 0xB000: // Jump to location nnn + V0.
 		c.PC = nnn + uint16(c.V[0x0])
 	case 0xC000: // Set Vx = random byte AND kk.
-		c.V[x] = uint8(rand.Intn(256)) & uint8(kk)
+		c.V[x] = uint8(rand.New(rand.NewSource(time.Now().UnixNano())).Intn(256)) & uint8(kk)
 	case 0xD000: // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
 		x := c.V[x]
 		y := c.V[y]
@@ -225,6 +234,14 @@ func (c *Chip8) processOP(op uint16) {
 				if (pixel & (0x80 >> i)) != 0 {
 					posY := uint8(y) + uint8(j)
 					posX := uint8(x) + uint8(i)
+
+					// TODO: fix
+					if posX > 63 {
+						posX = 63
+					}
+					if posY > 31 {
+						posY = 31
+					}
 
 					if c.Display[posY][posX] == 1 {
 						c.V[0xF] = 1
