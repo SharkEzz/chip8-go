@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"image/color"
 	"time"
 
@@ -134,10 +135,17 @@ func (g *Game) processKeyPress() {
 }
 
 func main() {
+	file := flag.String("file", "", "The program to load")
+
+	flag.Parse()
+
 	chip8 := emulator.Init()
-	err := chip8.LoadProgram("./brick.ch8")
-	if err != nil {
-		panic(err)
+
+	if *file != "" {
+		err := chip8.LoadProgram(*file)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	ebiten.SetWindowSize(64*MODIFIER, 32*MODIFIER)
