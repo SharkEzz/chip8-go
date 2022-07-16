@@ -6,12 +6,14 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+
+	"github.com/SharkEzz/chip8-go/pkg/emulator"
 )
 
 const MODIFIER = 15
 
 type Game struct {
-	emulator *Chip8
+	emulator *emulator.Chip8
 	ticker   *time.Ticker
 }
 
@@ -132,8 +134,8 @@ func (g *Game) processKeyPress() {
 }
 
 func main() {
-	emulator := Init()
-	err := emulator.LoadProgram("./brick.ch8")
+	chip8 := emulator.Init()
+	err := chip8.LoadProgram("./brick.ch8")
 	if err != nil {
 		panic(err)
 	}
@@ -144,7 +146,7 @@ func main() {
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
 	ebiten.SetMaxTPS(-1)
 	game := &Game{
-		emulator,
+		chip8,
 		time.NewTicker(time.Second / 60),
 	}
 	if err := ebiten.RunGame(game); err != nil {
