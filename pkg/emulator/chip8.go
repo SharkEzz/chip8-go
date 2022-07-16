@@ -73,10 +73,8 @@ func (c *Chip8) SetKeyState(num uint8, down bool) {
 // Cycle represent a CPU cycle.
 //
 // By default the Chi8 CPU run at 60Hz.
-func (c *Chip8) Cycle() {
+func (c *Chip8) Cycle() uint16 {
 	op := uint16(c.Memory[c.PC])<<8 | uint16(c.Memory[c.PC+1]) // Combine the 2 bytes of the opcode
-
-	fmt.Printf("op=0x%04X\n", op)
 
 	c.processOP(op)
 
@@ -87,6 +85,8 @@ func (c *Chip8) Cycle() {
 		c.Beeper()
 		c.ST -= 1
 	}
+
+	return op
 }
 
 // processOP take a opcode and process it

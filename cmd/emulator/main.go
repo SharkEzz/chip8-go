@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"image/color"
 	"time"
 
@@ -16,6 +17,8 @@ const MODIFIER = 15
 type Game struct {
 	emulator *emulator.Chip8
 	ticker   *time.Ticker
+	latestOp uint16
+	debugImg *ebiten.Image
 }
 
 func (g *Game) Update() error {
@@ -25,7 +28,7 @@ func (g *Game) Update() error {
 	case <-g.ticker.C:
 	}
 
-	g.emulator.Cycle()
+	g.latestOp = g.emulator.Cycle()
 
 	g.processKeyPress()
 
@@ -34,6 +37,7 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	if g.emulator.Draw() {
+		screen.Clear()
 		buffer := g.emulator.Buffer()
 		for j := 0; j < len(buffer); j++ {
 			for i := 0; i < len(buffer[j]); i++ {
@@ -45,6 +49,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 		}
 	}
+
+	g.debugImg.Fill(color.Black)
+
+	for i := 0; i < 16; i++ {
+		ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("V%X = 0x%02X", i, g.emulator.V[i]), 0, i*15)
+	}
+
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("I  = 0x%04X", g.emulator.I), 75, 0)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("DT = 0x%02X", g.emulator.DT), 75, 15)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("ST = 0x%02X", g.emulator.ST), 75, 30)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("PC = 0x%04X", g.emulator.PC), 75, 45)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("SP = 0x%04X", g.emulator.SP), 75, 60)
+
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("OPCODE: 0x%04X", g.latestOp), 75, 100)
+	pos := ebiten.GeoM{}
+	pos.Translate(64*MODIFIER+100, 0)
+	screen.DrawImage(g.debugImg, &ebiten.DrawImageOptions{
+		GeoM: pos,
+	})
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -148,7 +171,7 @@ func main() {
 		}
 	}
 
-	ebiten.SetWindowSize(64*MODIFIER, 32*MODIFIER)
+	ebiten.SetWindowSize(64*MODIFIER+300, 32*MODIFIER)
 	ebiten.SetWindowTitle("Chip8")
 	ebiten.SetScreenClearedEveryFrame(false)
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
@@ -156,7 +179,10 @@ func main() {
 	game := &Game{
 		chip8,
 		time.NewTicker(time.Second / 60),
+		0,
+		ebiten.NewImage(350, 250),
 	}
+
 	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
 	}
