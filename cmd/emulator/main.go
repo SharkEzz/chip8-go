@@ -75,6 +75,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (g *Game) processKeyPress() {
+	if ebiten.IsKeyPressed(ebiten.KeyHome) {
+		g.emulator.Reset()
+		return
+	}
+
 	if ebiten.IsKeyPressed(ebiten.Key1) {
 		g.emulator.SetKeyState(0x1, true)
 	} else {

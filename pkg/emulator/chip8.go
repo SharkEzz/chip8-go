@@ -52,6 +52,23 @@ func Init() *Chip8 {
 	return c
 }
 
+// Reset restart the program currently in the memory (at address 0x200)
+func (c *Chip8) Reset() {
+	c.Display = [32][64]uint8{}
+	c.I = 0x0
+	c.DT = 0x0
+	c.ST = 0x0
+	c.PC = 0x200
+	c.SP = 0x0
+	c.Key = [16]uint8{}
+	c.Stack = [16]uint16{}
+	c.ShouldDraw = false
+
+	for i := 0; i < len(c.V); i++ {
+		c.V[i] = 0x0
+	}
+}
+
 func (c *Chip8) Buffer() [32][64]uint8 {
 	return c.Display
 }
@@ -208,13 +225,6 @@ func (c *Chip8) processOP(op uint16) {
 				if (pixel & (0x80 >> i)) != 0 {
 					posY := uint8(y) + uint8(j)
 					posX := uint8(x) + uint8(i)
-
-					if posY >= 32 {
-						posY = 31
-					}
-					if posX >= 64 {
-						posX = 63
-					}
 
 					if c.Display[posY][posX] == 1 {
 						c.V[0xF] = 1
