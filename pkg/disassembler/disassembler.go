@@ -34,7 +34,7 @@ func (d *Disassembler) Disassemble() []*Line {
 	for d.pc != uint16(len(d.fileContent)-1) && int(d.pc+1) <= len(d.fileContent) {
 		op := uint16(d.fileContent[d.pc])<<8 | uint16(d.fileContent[d.pc+1])
 
-		line := d.DisassembleOPCode(op)
+		line := DisassembleOPCode(op)
 		if line != nil {
 			lines = append(lines, line)
 		}
@@ -45,98 +45,100 @@ func (d *Disassembler) Disassemble() []*Line {
 	return lines
 }
 
-func (d *Disassembler) DisassembleOPCode(op uint16) *Line {
-	x := (op & 0x0F00) >> 8
-	y := (op & 0x00F0) >> 4
-	nnn := op & 0x0FFF
-	kk := op & 0x00FF
+func DisassembleOPCode(op uint16) *Line {
+	x := fmt.Sprintf("%X", uint(op&0x0F00)>>8)
+	y := fmt.Sprintf("%X", (op&0x00F0)>>4)
+	nnn := fmt.Sprintf("0x%04X", op&0x0FFF)
+	kk := fmt.Sprintf("0x%04X", op&0x00FF)
+
+	formattedOP := formatOP(op)
 
 	switch op & 0xF000 {
 	case 0x0000:
 		switch op & 0x000F {
 		case 0x0000:
-			return &Line{formatOP(op), "CLS"}
+			return &Line{formattedOP, "CLS"}
 		case 0x000E:
-			return &Line{formatOP(op), "RET"}
+			return &Line{formattedOP, "RET"}
 		default:
 			return nil
 		}
 	case 0x1000:
-		return &Line{formatOP(op), fmt.Sprintf("JP 0x%04X", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("JP %s", nnn)}
 	case 0x2000:
-		return &Line{formatOP(op), fmt.Sprintf("CALL 0x%04X", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("CALL %s", nnn)}
 	case 0x3000:
-		return &Line{formatOP(op), fmt.Sprintf("SE V%X, 0x%04X", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("SE V%s, %s", x, kk)}
 	case 0x4000:
-		return &Line{formatOP(op), fmt.Sprintf("SNE V%X, 0x%04X", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("SNE V%s, %s", x, kk)}
 	case 0x5000:
-		return &Line{formatOP(op), fmt.Sprintf("SE V%X, V%X", x, y)}
+		return &Line{formattedOP, fmt.Sprintf("SE V%s, %s", x, y)}
 	case 0x6000:
-		return &Line{formatOP(op), fmt.Sprintf("LD V%X, 0x%04X", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("LD V%s, %s", x, kk)}
 	case 0x7000:
-		return &Line{formatOP(op), fmt.Sprintf("ADD V%X, 0x%04X", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("ADD V%s, %s", x, kk)}
 	case 0x8000:
 		switch op & 0x000F {
 		case 0x0000:
-			return &Line{formatOP(op), fmt.Sprintf("LD V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("LD V%s, V%s", x, y)}
 		case 0x0001:
-			return &Line{formatOP(op), fmt.Sprintf("OR V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("OR V%s, V%s", x, y)}
 		case 0x0002:
-			return &Line{formatOP(op), fmt.Sprintf("AND V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("AND V%s, V%s", x, y)}
 		case 0x0003:
-			return &Line{formatOP(op), fmt.Sprintf("XOR V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("XOR V%s, V%s", x, y)}
 		case 0x0004:
-			return &Line{formatOP(op), fmt.Sprintf("ADD V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("ADD V%s, V%s", x, y)}
 		case 0x0005:
-			return &Line{formatOP(op), fmt.Sprintf("SUB V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("SUB V%s, V%s", x, y)}
 		case 0x0006:
-			return &Line{formatOP(op), fmt.Sprintf("SHR V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("SHR V%s, V%s", x, y)}
 		case 0x0007:
-			return &Line{formatOP(op), fmt.Sprintf("SUBN V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("SUBN V%s, V%s", x, y)}
 		case 0x000E:
-			return &Line{formatOP(op), fmt.Sprintf("SHL V%X, V%X", x, y)}
+			return &Line{formattedOP, fmt.Sprintf("SHL V%s, V%s", x, y)}
 		default:
 			return nil
 		}
 	case 0x9000:
-		return &Line{formatOP(op), fmt.Sprintf("SNE V%X, V%X", x, y)}
+		return &Line{formattedOP, fmt.Sprintf("SNE V%s, V%s", x, y)}
 	case 0xA000:
-		return &Line{formatOP(op), fmt.Sprintf("LD I, 0x%04X", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("LD I, 0x%s", nnn)}
 	case 0xB000:
-		return &Line{formatOP(op), fmt.Sprintf("JP V0, 0x%04X", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("JP V0, 0x%s", nnn)}
 	case 0xC000:
-		return &Line{formatOP(op), fmt.Sprintf("RND V%d, 0x%04X", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("RND V%s, 0x%s", x, kk)}
 	case 0xD000:
-		return &Line{formatOP(op), fmt.Sprintf("DRW V%X, V%X, 0x%04X", x, y, op&0x000F)}
+		return &Line{formattedOP, fmt.Sprintf("DRW V%s, V%s, 0x%04X", x, y, op&0x000F)}
 	case 0xE000:
 		switch op & 0x00FF {
 		case 0x009E:
-			return &Line{formatOP(op), fmt.Sprintf("SKP V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("SKP V%s", x)}
 		case 0x00A1:
-			return &Line{formatOP(op), fmt.Sprintf("SKNP V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("SKNP V%s", x)}
 		default:
 			return nil
 		}
 	case 0xF000:
 		switch op & 0x00FF {
 		case 0x0007:
-			return &Line{formatOP(op), fmt.Sprintf("LD V%X, DT", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD V%s, DT", x)}
 		case 0x000A:
-			return &Line{formatOP(op), fmt.Sprintf("LD V%X, K", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD V%s, K", x)}
 		case 0x0015:
-			return &Line{formatOP(op), fmt.Sprintf("LD DT, V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD DT, V%s", x)}
 		case 0x0018:
-			return &Line{formatOP(op), fmt.Sprintf("LD DT, V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD DT, V%s", x)}
 		case 0x001E:
-			return &Line{formatOP(op), fmt.Sprintf("ADD I, V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("ADD I, V%s", x)}
 		case 0x0029:
-			return &Line{formatOP(op), fmt.Sprintf("LD F, V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD F, V%s", x)}
 		case 0x0033:
-			return &Line{formatOP(op), fmt.Sprintf("LD B, V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD B, V%s", x)}
 		case 0x0055:
-			return &Line{formatOP(op), fmt.Sprintf("LD [I], V%X", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD I, V%s", x)}
 		case 0x0065:
-			return &Line{formatOP(op), fmt.Sprintf("LD V%X, [I]", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD V%s, I", x)}
 		}
 	default:
 		return nil

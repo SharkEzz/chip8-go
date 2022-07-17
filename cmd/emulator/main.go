@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
+	"github.com/SharkEzz/chip8-go/pkg/disassembler"
 	"github.com/SharkEzz/chip8-go/pkg/emulator"
 )
 
@@ -58,9 +59,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("PC = 0x%04X", g.emulator.PC), 75, 45)
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("SP = 0x%04X", g.emulator.SP), 75, 60)
 
-	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("OPCODE: 0x%04X", g.latestOp), 75, 100)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("OPCODE: 0x%04X", g.latestOp), 75, 85)
+	ebitenutil.DebugPrintAt(g.debugImg, disassembler.DisassembleOPCode(g.latestOp).Instruction, 75, 110)
 	pos := ebiten.GeoM{}
-	pos.Translate(64*MODIFIER+100, 0)
+	pos.Translate(64*MODIFIER, 0)
 	screen.DrawImage(g.debugImg, &ebiten.DrawImageOptions{
 		GeoM: pos,
 	})
