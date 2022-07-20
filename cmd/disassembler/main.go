@@ -22,6 +22,5 @@ func main() {
 		panic(err)
 	}
 
-	d.Disassemble()
 	d.WriteToFile(*outputFile)
 }

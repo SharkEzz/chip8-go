@@ -11,9 +11,10 @@ type Line struct {
 }
 
 type Disassembler struct {
-	fileContent []byte
-	pc          uint16
-	Lines       []Line
+	fileContent     []byte
+	pc              uint16
+	Lines           []*Line
+	hasDisassembled bool
 }
 
 func NewDisassembler(fileName string) (*Disassembler, error) {
@@ -24,7 +25,6 @@ func NewDisassembler(fileName string) (*Disassembler, error) {
 
 	return &Disassembler{
 		fileContent: fileContent,
-		pc:          0,
 	}, nil
 }
 
@@ -42,6 +42,9 @@ func (d *Disassembler) Disassemble() []*Line {
 		d.pc += 2
 	}
 
+	d.Lines = lines
+	d.hasDisassembled = true
+
 	return lines
 }
 
@@ -55,8 +58,8 @@ func DisassembleOPCode(op uint16) *Line {
 
 	switch op & 0xF000 {
 	case 0x0000:
-		switch op & 0x000F {
-		case 0x0000:
+		switch op & 0x00FF {
+		case 0x00E0:
 			return &Line{formattedOP, "CLS"}
 		case 0x000E:
 			return &Line{formattedOP, "RET"}
@@ -148,6 +151,10 @@ func DisassembleOPCode(op uint16) *Line {
 }
 
 func (d *Disassembler) WriteToFile(fileName string) error {
+	if !d.hasDisassembled {
+		d.Disassemble()
+	}
+
 	bf := []byte{}
 
 	for _, line := range d.Lines {

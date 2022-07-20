@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"github.com/SharkEzz/chip8-go/pkg/disassembler"
 	"github.com/SharkEzz/chip8-go/pkg/emulator"
@@ -18,13 +19,16 @@ type Game struct {
 	emulator *emulator.Chip8
 	latestOp uint16
 	debugImg *ebiten.Image
+	step     bool
 }
 
 func (g *Game) Update() error {
-	op := g.emulator.Cycle()
+	if (g.step && inpututil.IsKeyJustPressed(ebiten.KeyM)) || !g.step {
+		op := g.emulator.Cycle()
 
-	if op != 0 {
-		g.latestOp = op
+		if op != 0 {
+			g.latestOp = op
+		}
 	}
 
 	g.processKeyPress()
@@ -61,6 +65,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("OPCODE: 0x%04X", g.latestOp), 75, 85)
 	ebitenutil.DebugPrintAt(g.debugImg, disassembler.DisassembleOPCode(g.latestOp).Instruction, 75, 110)
+	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("Step : %v", g.step), 75, 130)
 	pos := ebiten.GeoM{}
 	pos.Translate(64*MODIFIER, 0)
 	screen.DrawImage(g.debugImg, &ebiten.DrawImageOptions{
@@ -75,6 +80,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func (g *Game) processKeyPress() {
 	if ebiten.IsKeyPressed(ebiten.KeyHome) {
 		g.emulator.Reset()
+		return
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyP) {
+		g.step = !g.step
 		return
 	}
 
@@ -162,11 +172,11 @@ func (g *Game) processKeyPress() {
 
 func main() {
 	file := flag.String("file", "", "The program to load")
-	speed := flag.Uint("speed", 60, "Speed of the emulator")
+	speed := flag.Int("speed", 60, "Speed of the emulator")
 
 	flag.Parse()
 
-	chip8 := emulator.Init(*speed)
+	chip8 := emulator.Init()
 
 	if *file != "" {
 		err := chip8.LoadProgram(*file)
@@ -179,11 +189,10 @@ func main() {
 	ebiten.SetWindowTitle("Chip8")
 	ebiten.SetScreenClearedEveryFrame(false)
 	ebiten.SetFPSMode(ebiten.FPSModeVsyncOffMaximum)
-	ebiten.SetMaxTPS(-1)
+	ebiten.SetMaxTPS(*speed)
 	game := &Game{
-		chip8,
-		0,
-		ebiten.NewImage(350, 250),
+		emulator: chip8,
+		debugImg: ebiten.NewImage(350, 250),
 	}
 
 	if err := ebiten.RunGame(game); err != nil {

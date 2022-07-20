@@ -39,14 +39,12 @@ type Chip8 struct {
 	Stack      [16]uint16    // stack
 	ShouldDraw bool
 	Beeper     func() // beeper function
-	Clock      *time.Ticker
 }
 
-func Init(clock uint) *Chip8 {
+func Init() *Chip8 {
 	c := &Chip8{
 		PC:     0x200, // Program start at 0x200
-		Beeper: func() { fmt.Print("\a") },
-		Clock:  time.NewTicker(time.Second / time.Duration(clock)),
+		Beeper: func() {},
 	}
 
 	// Copy fontset to memory, starting at 0x000
@@ -92,14 +90,8 @@ func (c *Chip8) SetKeyState(num uint8, down bool) {
 
 // Cycle represent a CPU cycle.
 //
-// By default the Chi8 CPU run at 60Hz.
+// By default the Chip8 CPU run at 60Hz.
 func (c *Chip8) Cycle() uint16 {
-	select {
-	default:
-		return 0
-	case <-c.Clock.C:
-	}
-
 	op := uint16(c.Memory[c.PC])<<8 | uint16(c.Memory[c.PC+1]) // Combine the 2 bytes of the opcode
 
 	c.processOP(op)
@@ -136,7 +128,7 @@ func (c *Chip8) processOP(op uint16) {
 				}
 			}
 			c.ShouldDraw = true
-		case 0x00EE: // Return from subroutine
+		case 0x000E: // Return from subroutine
 			c.PC = c.Stack[c.SP] // Set program counter to the address at the top of the stack
 			c.SP--               // Subtract 1 from stack pointer
 		default:
@@ -240,7 +232,7 @@ func (c *Chip8) processOP(op uint16) {
 						posX = posX - 64
 					}
 					if posY >= 32 {
-						posY = posX - 32
+						posY = posY - 32
 					}
 
 					if c.Display[posY][posX] == 1 {
