@@ -31,7 +31,7 @@ func NewDisassembler(fileName string) (*Disassembler, error) {
 func (d *Disassembler) Disassemble() []*Line {
 	lines := []*Line{}
 
-	for d.pc != uint16(len(d.fileContent)-1) && int(d.pc+1) <= len(d.fileContent) {
+	for d.pc != uint16(len(d.fileContent)-1) && int(d.pc+1) < len(d.fileContent) {
 		op := uint16(d.fileContent[d.pc])<<8 | uint16(d.fileContent[d.pc+1])
 
 		line := DisassembleOPCode(op)
@@ -61,7 +61,7 @@ func DisassembleOPCode(op uint16) *Line {
 		switch op & 0x00FF {
 		case 0x00E0:
 			return &Line{formattedOP, "CLS"}
-		case 0x000E:
+		case 0x00EE:
 			return &Line{formattedOP, "RET"}
 		default:
 			return nil
@@ -106,11 +106,11 @@ func DisassembleOPCode(op uint16) *Line {
 	case 0x9000:
 		return &Line{formattedOP, fmt.Sprintf("SNE V%s, V%s", x, y)}
 	case 0xA000:
-		return &Line{formattedOP, fmt.Sprintf("LD I, 0x%s", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("LD I, %s", nnn)}
 	case 0xB000:
-		return &Line{formattedOP, fmt.Sprintf("JP V0, 0x%s", nnn)}
+		return &Line{formattedOP, fmt.Sprintf("JP V0, %s", nnn)}
 	case 0xC000:
-		return &Line{formattedOP, fmt.Sprintf("RND V%s, 0x%s", x, kk)}
+		return &Line{formattedOP, fmt.Sprintf("RND V%s, %s", x, kk)}
 	case 0xD000:
 		return &Line{formattedOP, fmt.Sprintf("DRW V%s, V%s, 0x%04X", x, y, op&0x000F)}
 	case 0xE000:
@@ -131,7 +131,7 @@ func DisassembleOPCode(op uint16) *Line {
 		case 0x0015:
 			return &Line{formattedOP, fmt.Sprintf("LD DT, V%s", x)}
 		case 0x0018:
-			return &Line{formattedOP, fmt.Sprintf("LD DT, V%s", x)}
+			return &Line{formattedOP, fmt.Sprintf("LD ST, V%s", x)}
 		case 0x001E:
 			return &Line{formattedOP, fmt.Sprintf("ADD I, V%s", x)}
 		case 0x0029:

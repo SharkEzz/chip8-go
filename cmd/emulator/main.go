@@ -64,7 +64,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("SP = 0x%04X", g.emulator.SP), 75, 60)
 
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("OPCODE: 0x%04X", g.latestOp), 75, 85)
-	ebitenutil.DebugPrintAt(g.debugImg, disassembler.DisassembleOPCode(g.latestOp).Instruction, 75, 110)
+	line := disassembler.DisassembleOPCode(g.latestOp)
+	if line != nil {
+		ebitenutil.DebugPrintAt(g.debugImg, line.Instruction, 75, 110)
+	} else {
+		ebitenutil.DebugPrintAt(g.debugImg, "UNKNOWN", 75, 110)
+	}
 	ebitenutil.DebugPrintAt(g.debugImg, fmt.Sprintf("Step : %v", g.step), 75, 130)
 	pos := ebiten.GeoM{}
 	pos.Translate(64*MODIFIER, 0)
@@ -83,7 +88,7 @@ func (g *Game) processKeyPress() {
 		return
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyP) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) {
 		g.step = !g.step
 		return
 	}

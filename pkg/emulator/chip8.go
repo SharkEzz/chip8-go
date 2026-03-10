@@ -39,12 +39,14 @@ type Chip8 struct {
 	Stack      [16]uint16    // stack
 	ShouldDraw bool
 	Beeper     func() // beeper function
+	rng        *rand.Rand
 }
 
 func Init() *Chip8 {
 	c := &Chip8{
 		PC:     0x200, // Program start at 0x200
 		Beeper: func() {},
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	// Copy fontset to memory, starting at 0x000
@@ -128,9 +130,11 @@ func (c *Chip8) processOP(op uint16) {
 				}
 			}
 			c.ShouldDraw = true
-		case 0x000E: // Return from subroutine
-			c.PC = c.Stack[c.SP] // Set program counter to the address at the top of the stack
-			c.SP--               // Subtract 1 from stack pointer
+		case 0x00EE: // Return from subroutine
+			if c.SP > 0 {
+				c.SP--
+				c.PC = c.Stack[c.SP] // Set program counter to the address at the top of the stack
+			}
 		default:
 			// We ignore 0nnn opcodes
 			break
@@ -138,9 +142,11 @@ func (c *Chip8) processOP(op uint16) {
 	case 0x1000: // Jump to address NNN
 		c.PC = nnn
 	case 0x2000: // Call subroutine at NNN
-		c.SP++
-		c.Stack[c.SP] = c.PC // Save current program counter to stack
-		c.PC = nnn
+		if int(c.SP) < len(c.Stack) {
+			c.Stack[c.SP] = c.PC // Save current program counter to stack
+			c.SP++
+			c.PC = nnn
+		}
 	case 0x3000: // Skip next instruction if VX equals KK
 		if uint16(c.V[x]) == kk {
 			c.nextInstruction()
@@ -150,7 +156,7 @@ func (c *Chip8) processOP(op uint16) {
 			c.nextInstruction()
 		}
 	case 0x5000: // Skip next instruction if Vx = Vy.
-		if c.V[x] == c.V[y] {
+		if (op&0x000F) == 0x0 && c.V[x] == c.V[y] {
 			c.nextInstruction()
 		}
 	case 0x6000: // Set Vx = kk.
@@ -207,7 +213,7 @@ func (c *Chip8) processOP(op uint16) {
 			fmt.Printf("invalid opcode: 0x%04X\n", op)
 		}
 	case 0x9000: // Skip next instruction if Vx != Vy.
-		if c.V[x] != c.V[y] {
+		if (op&0x000F) == 0x0 && c.V[x] != c.V[y] {
 			c.nextInstruction()
 		}
 	case 0xA000: // Set I = nnn.
@@ -215,7 +221,7 @@ func (c *Chip8) processOP(op uint16) {
 	case 0xB000: // Jump to location nnn + V0.
 		c.PC = nnn + uint16(c.V[0x0])
 	case 0xC000: // Set Vx = random byte AND kk.
-		c.V[x] = uint8(rand.New(rand.NewSource(time.Now().UnixNano())).Intn(256)) & uint8(kk)
+		c.V[x] = uint8(c.rng.Intn(256)) & uint8(kk)
 	case 0xD000: // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
 		x := c.V[x]
 		y := c.V[y]
@@ -287,12 +293,10 @@ func (c *Chip8) processOP(op uint16) {
 			for i := 0; i < int(x)+1; i++ {
 				c.Memory[uint16(i)+c.I] = c.V[i]
 			}
-			c.I = x + 1
 		case 0x0065: // Read registers V0 through Vx from memory starting at location I.
 			for i := 0; i < int(x)+1; i++ {
 				c.V[i] = c.Memory[c.I+uint16(i)]
 			}
-			c.I = x + 1
 		}
 	default:
 		fmt.Printf("invalid opcode: 0x%04X\n", op)
